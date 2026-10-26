@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email in ['saifysamit123@gmail.com', 'saifysamit456@gmail.com'] ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Admins collection for RBAC
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // 1. Site Settings (Branding, Announcements, Favicon, Availability)
+    match /siteSettings/{docId} {
+      allow read: if true; // Publicly readable for all visitors
+      allow write: if isAdmin();
+    }
+
+    // 2. Services
+    match /services/{serviceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 3. Projects / Work Portfolio
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 4. Pricing Packages
+    match /pricingPackages/{packageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 5. Blog Posts / Insights
+    match /blogPosts/{postId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 6. Testimonials
+    match /testimonials/{testimonialId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 7. FAQs
+    match /faqs/{faqId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 8. Client Inquiries (Form leads)
+    match /inquiries/{inquiryId} {
+      // Any visitor can submit a legitimate inquiry
+      allow create: if isValidId(inquiryId) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.name.size() <= 200 &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() > 3 &&
+        request.resource.data.email.size() <= 200 &&
+        request.resource.data.brief is string &&
+        request.resource.data.brief.size() <= 5000;
+
+      // Only agency admins can read, update notes, or manage inquiries
+      allow read, update, delete: if isAdmin();
+    }
+
+    // 9. Newsletter Subscribers
+    match /subscribers/{subscriberId} {
+      allow create: if isValidId(subscriberId) &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() > 3 &&
+        request.resource.data.email.size() <= 200;
+      allow read, delete: if isAdmin();
+    }
+  }
+}

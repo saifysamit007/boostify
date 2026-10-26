@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // 1. Stub out WebSocket for Vite HMR in iframe/Cloud Run environments
+      (function() {
+        if (typeof window !== 'undefined') {
+          const OriginalWebSocket = window.WebSocket;
+          window.WebSocket = function(url, protocols) {
+            const urlStr = String(url || '');
+            // Only intercept HMR WebSocket connections
+            if (urlStr.includes('@vite') || urlStr.includes('vite') || urlStr.includes('run.app')) {
+              const fakeSocket = {
+                readyState: 3, // CLOSED
+                CONNECTING: 0,
+                OPEN: 1,
+                CLOSING: 2,
+                CLOSED: 3,
+                url: urlStr,
+                bufferedAmount: 0,
+                extensions: '',
+                protocol: '',
+                binaryType: 'blob',
+                addEventListener: function() {},
+                removeEventListener: function() {},
+                dispatchEvent: function() { return false; },
+                send: function() {},
+                close: function() {},
+                onopen: null,
+                onclose: null,
+                onerror: null,
+                onmessage: null,
+              };
+              return fakeSocket;
+            }
+            return new OriginalWebSocket(url, protocols);
+          };
+          if (OriginalWebSocket) {
+            window.WebSocket.prototype = OriginalWebSocket.prototype;
+            window.WebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
+            window.WebSocket.OPEN = OriginalWebSocket.OPEN;
+            window.WebSocket.CLOSING = OriginalWebSocket.CLOSING;
+            window.WebSocket.CLOSED = OriginalWebSocket.CLOSED;
+          }
+
+          // 2. Catch any stray unhandled rejection from any source
+          window.addEventListener('unhandledrejection', function(event) {
+            var msg = String(event?.reason?.message || event?.reason || '');
+            if (msg.includes('WebSocket') || msg.includes('ws://') || msg.includes('wss://') || msg.includes('closed without opened')) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              return true;
+            }
+          }, true);
+
+          // 3. Catch error events
+          window.addEventListener('error', function(event) {
+            var msg = String(event?.message || event?.error?.message || event || '');
+            if (msg.includes('WebSocket') || msg.includes('ws://') || msg.includes('wss://') || msg.includes('closed without opened')) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              return true;
+            }
+          }, true);
+        }
+      })();
+    </script>
+    <title>Boostify — Creative Digital Agency</title>
+    <meta name="description" content="World-class digital growth and creative agency in Dhaka, Bangladesh specializing in Website Design, UI/UX, Motion Graphics, Video Production, and Digital Marketing." />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Boostify — Creative Digital Agency" />
+    <meta property="og:description" content="World-class digital growth and creative agency in Dhaka, Bangladesh specializing in Website Design, UI/UX, Motion Graphics, Video Production, and Digital Marketing." />
+    <meta property="og:image" content="https://ik.imagekit.io/pc5amjyab/boostify-logo-02.png" />
+    <meta property="og:locale" content="en_US" />
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Boostify — Creative Digital Agency" />
+    <meta name="twitter:description" content="World-class digital growth and creative agency in Dhaka, Bangladesh specializing in Website Design, UI/UX, Motion Graphics, Video Production, and Digital Marketing." />
+    <meta name="twitter:image" content="https://ik.imagekit.io/pc5amjyab/boostify-logo-02.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="https://ik.imagekit.io/pc5amjyab/boostify-logo-02.png" />
+    <link rel="apple-touch-icon" href="https://ik.imagekit.io/pc5amjyab/boostify-logo-02.png" />
+
+    <!-- Google Fonts: Geometric Sans (Gotham fallback) + Hind Siliguri (Bengali) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-[#050505] text-[#F7F7F7] selection:bg-[#FF6E17] selection:text-white antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

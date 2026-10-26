@@ -1,0 +1,223 @@
+{
+  "entities": {
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Global website configuration, brand info, contact details, hero copy, availability, and favicon.",
+      "type": "object",
+      "properties": {
+        "brandName": { "type": "string", "maxLength": 100 },
+        "tagline": { "type": "string", "maxLength": 200 },
+        "logoUrl": { "type": "string", "maxLength": 1000 },
+        "faviconUrl": { "type": "string", "maxLength": 1000 },
+        "availability": {
+          "type": "object",
+          "properties": {
+            "isAvailable": { "type": "boolean" },
+            "statusText": { "type": "string", "maxLength": 200 }
+          }
+        },
+        "contact": {
+          "type": "object",
+          "properties": {
+            "email": { "type": "string", "maxLength": 200 },
+            "whatsapp": { "type": "string", "maxLength": 100 },
+            "whatsappUrl": { "type": "string", "maxLength": 500 },
+            "headquarters": { "type": "string", "maxLength": 300 }
+          }
+        },
+        "socials": {
+          "type": "object",
+          "properties": {
+            "instagram": { "type": "string", "maxLength": 500 },
+            "facebook": { "type": "string", "maxLength": 500 }
+          }
+        },
+        "hero": {
+          "type": "object",
+          "properties": {
+            "headline": { "type": "string", "maxLength": 500 },
+            "supportingHeadline": { "type": "string", "maxLength": 500 },
+            "supportingCopy": { "type": "string", "maxLength": 1000 },
+            "primaryCtaText": { "type": "string", "maxLength": 100 },
+            "secondaryCtaText": { "type": "string", "maxLength": 100 },
+            "videoUrl": { "type": "string", "maxLength": 1000 },
+            "videoBlur": { "type": "number" },
+            "videoOpacity": { "type": "number" },
+            "videoEnabled": { "type": "boolean" }
+          }
+        },
+        "announcement": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "text": { "type": "string", "maxLength": 500 },
+            "linkUrl": { "type": "string", "maxLength": 500 }
+          }
+        },
+        "seo": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string", "maxLength": 300 },
+            "description": { "type": "string", "maxLength": 1000 },
+            "keywords": { "type": "array" },
+            "ogImageUrl": { "type": "string", "maxLength": 1000 },
+            "canonicalUrl": { "type": "string", "maxLength": 500 }
+          }
+        },
+        "projectCategoryVisibility": {
+          "type": "object"
+        },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["brandName"]
+    },
+    "Service": {
+      "title": "Service",
+      "description": "Digital agency service offerings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "slug": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 100 },
+        "shortDescription": { "type": "string", "maxLength": 500 },
+        "fullDescription": { "type": "string", "maxLength": 3000 },
+        "deliverables": { "type": "array" },
+        "startingPrice": { "type": "string", "maxLength": 100 },
+        "iconName": { "type": "string", "maxLength": 100 },
+        "featured": { "type": "boolean" },
+        "sortOrder": { "type": "number" },
+        "visibility": { "type": "boolean" }
+      },
+      "required": ["id", "title", "slug", "category"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Portfolio case studies and creative works.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "slug": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 100 },
+        "year": { "type": "string", "maxLength": 50 },
+        "summary": { "type": "string", "maxLength": 1000 },
+        "clientChallenge": { "type": "string", "maxLength": 3000 },
+        "creativeStrategy": { "type": "string", "maxLength": 3000 },
+        "deliverables": { "type": "array" },
+        "outcome": { "type": "string", "maxLength": 3000 },
+        "metrics": { "type": "array" },
+        "coverImage": { "type": "string", "maxLength": 1000 },
+        "galleryImages": { "type": "array" },
+        "videoUrl": { "type": "string", "maxLength": 1000 },
+        "liveUrl": { "type": "string", "maxLength": 1000 },
+        "featured": { "type": "boolean" },
+        "published": { "type": "boolean" },
+        "isDemo": { "type": "boolean" }
+      },
+      "required": ["id", "title", "slug", "category", "coverImage"]
+    },
+    "PricingPackage": {
+      "title": "PricingPackage",
+      "description": "Service pricing sprint packages.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "slug": { "type": "string", "maxLength": 200 },
+        "price": { "type": "string", "maxLength": 100 },
+        "currency": { "type": "string", "maxLength": 20 },
+        "billingModel": { "type": "string", "maxLength": 100 },
+        "tagline": { "type": "string", "maxLength": 500 },
+        "deliverables": { "type": "array" },
+        "revisions": { "type": "string", "maxLength": 100 },
+        "estimatedDelivery": { "type": "string", "maxLength": 100 },
+        "featured": { "type": "boolean" },
+        "sortOrder": { "type": "number" },
+        "visibility": { "type": "boolean" }
+      },
+      "required": ["id", "title", "price"]
+    },
+    "BlogPost": {
+      "title": "BlogPost",
+      "description": "Insights, dispatches, and articles.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 300 },
+        "slug": { "type": "string", "maxLength": 300 },
+        "category": { "type": "string", "maxLength": 100 },
+        "author": { "type": "string", "maxLength": 100 },
+        "publishedDate": { "type": "string", "maxLength": 100 },
+        "readTime": { "type": "string", "maxLength": 50 },
+        "coverImage": { "type": "string", "maxLength": 1000 },
+        "excerpt": { "type": "string", "maxLength": 1000 },
+        "content": { "type": "string", "maxLength": 20000 },
+        "status": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "title", "slug", "content"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "Client project inquiry submissions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "email": { "type": "string", "maxLength": 200 },
+        "company": { "type": "string", "maxLength": 200 },
+        "services": { "type": "array" },
+        "budgetRange": { "type": "string", "maxLength": 100 },
+        "timeline": { "type": "string", "maxLength": 100 },
+        "contactPreference": { "type": "string", "maxLength": 50 },
+        "phone": { "type": "string", "maxLength": 100 },
+        "brief": { "type": "string", "maxLength": 5000 },
+        "status": { "type": "string", "maxLength": 50 },
+        "adminNotes": { "type": "string", "maxLength": 5000 },
+        "createdAt": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "name", "email", "brief"]
+    },
+    "Subscriber": {
+      "title": "Subscriber",
+      "description": "Newsletter subscribers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 200 },
+        "subscribedAt": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "email"]
+    }
+  },
+  "firestore": {
+    "/siteSettings/{docId}": {
+      "schema": "SiteSettings",
+      "description": "Global website configuration and branding details."
+    },
+    "/services/{serviceId}": {
+      "schema": "Service",
+      "description": "Agency services."
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Portfolio projects and live websites."
+    },
+    "/pricingPackages/{packageId}": {
+      "schema": "PricingPackage",
+      "description": "Pricing sprint packages."
+    },
+    "/blogPosts/{postId}": {
+      "schema": "BlogPost",
+      "description": "Articles and essays."
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": "Inquiry",
+      "description": "Client inquiries submitted through the contact form."
+    },
+    "/subscribers/{subscriberId}": {
+      "schema": "Subscriber",
+      "description": "Newsletter subscribers."
+    }
+  }
+}
