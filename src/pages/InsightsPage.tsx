@@ -4,6 +4,7 @@ import { BlogPost } from '../types';
 import { BlogPostSkeleton } from '../components/ui/SkeletonCard';
 import { LiquidGlass } from '../components/ui/LiquidGlass';
 import { GlassButton } from '../components/ui/GlassButton';
+import { OptimizedImage } from '../components/ui/OptimizedImage';
 import { ArrowLeft, ArrowUpRight, Clock, Calendar, User, Tag, Share2 } from 'lucide-react';
 
 interface InsightsPageProps {
@@ -89,10 +90,10 @@ export const InsightsPage: React.FC<InsightsPageProps> = ({ posts, isLoading = f
             >
             <div>
               <div className="aspect-[16/10] overflow-hidden bg-neutral-900 relative">
-                <img
+                <OptimizedImage
                   src={post.coverImage}
                   alt={post.title}
-                  loading="lazy"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute top-3 left-3 px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider bg-black/60 backdrop-blur-md text-white border border-white/10">
@@ -205,7 +206,12 @@ export const ArticleDetailPage: React.FC<ArticleDetailProps> = ({ slug, posts, o
 
       {/* Featured Cover Media */}
       <div className="aspect-[16/9] w-full rounded-2xl overflow-hidden border border-white/10 mb-12 shadow-2xl bg-neutral-900">
-        <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover" />
+        <OptimizedImage
+          src={post.coverImage}
+          alt={post.title}
+          sizes="(max-width: 1024px) 100vw, 896px"
+          className="w-full h-full object-cover"
+        />
       </div>
 
       {/* Article Content */}

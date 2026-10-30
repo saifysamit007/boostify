@@ -108,15 +108,32 @@ function setLocalItem<T>(key: string, value: T): void {
 }
 
 // Synchronize changes to server disk store
-async function syncToServer(collection: string, payload: any): Promise<void> {
+async function syncToServer(collection: string, payload: any): Promise<{ success: boolean; message: string }> {
   try {
-    await fetch(`/api/content/${collection}`, {
+    const res = await fetch(`/api/content/${collection}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-  } catch (e) {
-    console.warn('[Boostify] Server sync warning for', collection, e);
+
+    if (!res.ok) {
+      let serverError = `Server responded with HTTP ${res.status}`;
+      try {
+        const errorJson = await res.json();
+        if (errorJson && errorJson.message) {
+          serverError = errorJson.message;
+        }
+      } catch {
+        // Fallback to HTTP status
+      }
+      throw new Error(serverError);
+    }
+
+    const data = await res.json().catch(() => ({}));
+    return { success: true, message: data.message || `Collection ${collection} updated.` };
+  } catch (e: any) {
+    console.error('[Boostify] Server sync failed for', collection, e);
+    throw new Error(e.message || 'Network connection failed or backend server unreachable.');
   }
 }
 
@@ -141,13 +158,14 @@ export async function fetchSiteSettings(): Promise<SiteSettings> {
   // 1. Check cached local storage item
   const localItem = getLocalItem<SiteSettings | null>(STORAGE_KEYS.SETTINGS, null);
 
-  // 2. Check server disk store
+  // 2. Check server disk store (authoritative across devices)
   const serverItem = await fetchFromServer<SiteSettings>('settings');
+
+  const localTime = typeof localItem?.updatedAt === 'number' ? localItem.updatedAt : 0;
+  const serverTime = typeof serverItem?.updatedAt === 'number' ? serverItem.updatedAt : 0;
 
   let newestLocalOrServer: SiteSettings | null = null;
   if (localItem && serverItem) {
-    const localTime = localItem.updatedAt || 0;
-    const serverTime = serverItem.updatedAt || 0;
     newestLocalOrServer = localTime >= serverTime ? localItem : serverItem;
   } else {
     newestLocalOrServer = localItem || serverItem;
@@ -166,14 +184,12 @@ export async function fetchSiteSettings(): Promise<SiteSettings> {
     }
   }
 
-  // Pick freshest version based on updatedAt timestamps
-  // If local or server was recently modified and Firestore is unversioned or older,
-  // we strictly preserve local/server so admin changes never reset!
+  // Pick freshest version based on strictly verified numeric timestamps
   let chosen: SiteSettings = initialSiteSettings;
   if (newestLocalOrServer && firestoreData) {
-    const localTime = newestLocalOrServer.updatedAt || 0;
-    const firestoreTime = firestoreData.updatedAt || 0;
-    chosen = localTime >= firestoreTime ? newestLocalOrServer : firestoreData;
+    const freshTime = Math.max(localTime, serverTime);
+    const firestoreTime = typeof firestoreData.updatedAt === 'number' ? firestoreData.updatedAt : 0;
+    chosen = freshTime >= firestoreTime ? newestLocalOrServer : firestoreData;
   } else if (newestLocalOrServer) {
     chosen = newestLocalOrServer;
   } else if (firestoreData) {
@@ -185,26 +201,36 @@ export async function fetchSiteSettings(): Promise<SiteSettings> {
     ...chosen,
     hero: {
       ...initialSiteSettings.hero,
-      ...(chosen.hero || {})
+      ...(chosen.hero || {}),
     },
     seo: {
       ...initialSiteSettings.seo,
-      ...(chosen.seo || {})
+      ...(chosen.seo || {}),
     },
     projectCategoryVisibility: {
       ...initialSiteSettings.projectCategoryVisibility,
-      ...(chosen.projectCategoryVisibility || {})
-    }
+      ...(chosen.projectCategoryVisibility || {}),
+    },
+    updatedAt: chosen.updatedAt || Date.now(),
   };
 
   setLocalItem(STORAGE_KEYS.SETTINGS, finalMerged);
   return finalMerged;
 }
 
-export async function saveSiteSettings(settings: SiteSettings): Promise<void> {
+export interface SaveSettingsResult {
+  success: boolean;
+  serverSynced: boolean;
+  firestoreSynced: boolean;
+  firestoreError?: string;
+  timestamp: number;
+  message: string;
+}
+
+export async function saveSiteSettings(settings: SiteSettings): Promise<SaveSettingsResult> {
   const withTimestamp: SiteSettings = {
     ...settings,
-    updatedAt: settings.updatedAt || Date.now(),
+    updatedAt: Date.now(),
   };
 
   // 1. Update local cache immediately
@@ -214,16 +240,31 @@ export async function saveSiteSettings(settings: SiteSettings): Promise<void> {
   }
 
   // 2. Sync to server disk store (persists across all devices worldwide)
+  // If backend server returns error (500, network fail, etc.), this will throw and be caught by the UI
   await syncToServer('settings', withTimestamp);
+
+  let firestoreSynced = false;
+  let firestoreError: string | undefined;
 
   // 3. Save to Cloud Firestore if authenticated
   if (db && auth?.currentUser) {
     try {
       await setDoc(doc(db, 'siteSettings', 'main'), withTimestamp);
-    } catch {
-      // Server disk store and local cache already updated
+      firestoreSynced = true;
+    } catch (err: any) {
+      firestoreError = err.message || 'Firestore write permission error';
+      console.warn('[Boostify] Cloud Firestore write failed:', err);
     }
   }
+
+  return {
+    success: true,
+    serverSynced: true,
+    firestoreSynced,
+    firestoreError,
+    timestamp: withTimestamp.updatedAt || Date.now(),
+    message: 'Site settings successfully persisted to disk store and synchronized across clients.',
+  };
 }
 
 // ---------------- SERVICES ----------------
@@ -421,8 +462,8 @@ export async function deleteProject(projectId: string): Promise<void> {
   // 5. Persist to server disk store
   await syncToServer('projects', updated);
 
-  // 6. Delete from Cloud Firestore if available
-  if (db) {
+  // 6. Delete from Cloud Firestore if authenticated
+  if (db && auth?.currentUser) {
     try {
       await deleteDoc(doc(db, 'projects', projectId));
     } catch (err) {

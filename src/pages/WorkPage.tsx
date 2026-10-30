@@ -5,6 +5,7 @@ import { ProjectCard } from '../components/ui/ProjectCard';
 import { ProjectCardSkeleton } from '../components/ui/SkeletonCard';
 import { GlassButton } from '../components/ui/GlassButton';
 import { LiquidGlass } from '../components/ui/LiquidGlass';
+import { OptimizedImage } from '../components/ui/OptimizedImage';
 import { ArrowLeft, ArrowUpRight, Sparkles, Check, CheckCircle2, ExternalLink } from 'lucide-react';
 
 interface WorkPageProps {
@@ -207,9 +208,10 @@ export const ProjectDetailPage: React.FC<ProjectDetailProps> = ({ slug, projects
 
       {/* Main Cover Media */}
       <div className="aspect-[16/9] w-full rounded-2xl overflow-hidden border border-white/10 mb-12 shadow-2xl bg-neutral-900">
-        <img
+        <OptimizedImage
           src={project.coverImage}
           alt={project.title}
+          sizes="(max-width: 1024px) 100vw, 896px"
           className="w-full h-full object-cover"
         />
       </div>
@@ -256,7 +258,12 @@ export const ProjectDetailPage: React.FC<ProjectDetailProps> = ({ slug, projects
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {project.galleryImages.slice(1).map((img, i) => (
                   <div key={i} className="aspect-[16/10] rounded-xl overflow-hidden border border-white/10 bg-neutral-900">
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <OptimizedImage
+                      src={img}
+                      alt={`${project.title} artifact ${i + 1}`}
+                      sizes="(max-width: 640px) 100vw, 50vw"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 ))}
               </div>

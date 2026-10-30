@@ -23,7 +23,7 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '30mb' }));
 
 // Persistent server-side storage file on disk
 const DATA_DIR = path.resolve(__dirname, 'data');
@@ -50,6 +50,7 @@ function saveStoreData(data: Record<string, any>): void {
     fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
     console.error('[Boostify Store] Error writing server store:', err);
+    throw err;
   }
 }
 
@@ -117,13 +118,73 @@ app.post('/api/content/:collection', (req, res) => {
     return res.status(400).json({ success: false, message: 'Collection name is required.' });
   }
 
-  const store = getStoreData();
-  store[collection] = payload;
-  store.lastUpdated = new Date().toISOString();
-  saveStoreData(store);
+  // Ensure settings always has explicit fresh numeric updatedAt timestamp
+  if (collection === 'settings' && payload && typeof payload === 'object') {
+    payload.updatedAt = Date.now();
+  }
 
-  console.log(`[Boostify Store] Collection '${collection}' persisted to server disk store.`);
-  res.json({ success: true, message: `Collection ${collection} updated.`, data: payload });
+  try {
+    const store = getStoreData();
+    store[collection] = payload;
+    store.lastUpdated = new Date().toISOString();
+    saveStoreData(store);
+
+    console.log(`[Boostify Store] Collection '${collection}' persisted to server disk store.`);
+    return res.json({ success: true, message: `Collection ${collection} updated successfully.`, data: payload });
+  } catch (err: any) {
+    console.error(`[Boostify Store] Failed to save collection '${collection}':`, err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Internal server error: Failed to persist data to server disk store.',
+    });
+  }
+});
+
+// 3.5. GET /api/images/optimize - High Performance Image Transformation & WebP Serving
+app.get('/api/images/optimize', async (req, res) => {
+  const imageUrl = req.query.url as string;
+  const width = parseInt(req.query.w as string, 10) || 1200;
+  const quality = parseInt(req.query.q as string, 10) || 80;
+  const format = (req.query.fmt as string) || 'webp';
+
+  if (!imageUrl) {
+    return res.status(400).json({ error: 'Image URL is required' });
+  }
+
+  try {
+    // 1. Direct CDN Redirections with native optimization flags
+    if (imageUrl.includes('images.unsplash.com') || imageUrl.includes('unsplash.com')) {
+      const u = new URL(imageUrl);
+      u.searchParams.set('fm', format);
+      u.searchParams.set('auto', 'format,compress');
+      u.searchParams.set('w', width.toString());
+      u.searchParams.set('q', quality.toString());
+      u.searchParams.set('fit', 'crop');
+      return res.redirect(302, u.toString());
+    }
+
+    if (imageUrl.includes('ik.imagekit.io')) {
+      const u = new URL(imageUrl);
+      u.searchParams.set('tr', `f-${format},w-${width},q-${quality}`);
+      return res.redirect(302, u.toString());
+    }
+
+    // 2. Fetch external image and serve with long-term immutable cache
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      return res.status(response.status).send('Failed to fetch source image');
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+
+    const buffer = await response.arrayBuffer();
+    return res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.warn('[Boostify Image Optimizer] Proxy error for:', imageUrl, err);
+    return res.redirect(302, imageUrl);
+  }
 });
 
 // 4. GET /api/inquiries

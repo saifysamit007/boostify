@@ -16,8 +16,10 @@ import { ProjectCard } from '../components/ui/ProjectCard';
 import { ProjectCardSkeleton, BlogPostSkeleton } from '../components/ui/SkeletonCard';
 import { ServiceCard } from '../components/ui/ServiceCard';
 import { EstimatedBudgetCalculator } from '../components/ui/EstimatedBudgetCalculator';
-import { ProjectInquiryForm } from '../components/ui/ProjectInquiryForm';
 import { CollaboratorTicker } from '../components/ui/CollaboratorTicker';
+import { HeroBackgroundVideo } from '../components/ui/HeroBackgroundVideo';
+import { OptimizedImage } from '../components/ui/OptimizedImage';
+import { ProjectInquiryForm } from '../components/ui/ProjectInquiryForm';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   ArrowDown, 
@@ -144,30 +146,13 @@ export const HomePage: React.FC<HomePageProps> = ({
           Seamlessly positioned right below Navbar with zero black void
       ======================================================== */}
       <section className="relative min-h-[90vh] flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 text-center overflow-hidden pt-20 sm:pt-24 pb-12 sm:pb-16">
-        {/* Background Video with Dynamic Blurriness & Dimming Controls */}
-        {settings.hero.videoEnabled !== false && settings.hero.videoUrl && !videoError && (
-          <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-            <video
-              key={settings.hero.videoUrl}
-              autoPlay
-              loop
-              muted
-              playsInline
-              onError={() => setVideoError(true)}
-              style={{
-                filter: `blur(${typeof settings.hero.videoBlur === 'number' ? settings.hero.videoBlur : 10}px)`,
-                opacity: typeof settings.hero.videoOpacity === 'number' ? settings.hero.videoOpacity / 100 : 0.4,
-              }}
-              className="absolute inset-0 w-full h-full object-cover scale-110 transform-gpu transition-all duration-700 ease-out"
-            >
-              <source src={settings.hero.videoUrl} type="video/mp4" />
-              <source src={settings.hero.videoUrl} type="video/webm" />
-            </video>
-            {/* Cinematic dark scrim & ambient tint overlay for ultra-crisp typography contrast */}
-            <div className="absolute inset-0 bg-gradient-to-b from-[#050505]/80 via-[#050505]/50 to-[#050505]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,110,23,0.14)_0%,transparent_70%)]" />
-          </div>
-        )}
+        {/* Background Video with Dynamic Blurriness & Dimming Controls (Direct Video, YouTube, or Vimeo) */}
+        <HeroBackgroundVideo
+          videoUrl={settings.hero.videoUrl}
+          videoEnabled={settings.hero.videoEnabled ?? true}
+          videoBlur={settings.hero.videoBlur ?? 10}
+          videoOpacity={settings.hero.videoOpacity ?? 40}
+        />
 
         {/* Organic Morphing Shapes for ambient wavy atmosphere */}
         <MorphingBlob
@@ -846,13 +831,13 @@ export const HomePage: React.FC<HomePageProps> = ({
                     >
                       <div>
                         <div className="aspect-[16/10] overflow-hidden bg-neutral-900 relative">
-                          <img
+                          <OptimizedImage
                             src={post.coverImage}
                             alt={post.title}
-                            loading="lazy"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 33vw, 400px"
                             className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-106"
                           />
-                          <div className="absolute top-3 left-3 px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider bg-black/60 backdrop-blur-md text-white border border-white/10">
+                          <div className="absolute top-3 left-3 px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider bg-black/60 backdrop-blur-md text-white border border-white/10 z-10">
                             {post.category}
                           </div>
                         </div>

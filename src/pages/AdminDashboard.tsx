@@ -32,6 +32,9 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { LiquidGlass } from '../components/ui/LiquidGlass';
 import { GlassButton } from '../components/ui/GlassButton';
+import { HeroBackgroundVideo } from '../components/ui/HeroBackgroundVideo';
+import { compressImageFileToWebP } from '../utils/imageOptimizer';
+import { ToastNotificationContainer, ToastItem } from '../components/ui/ToastNotification';
 import { PlatformBadge, TrustedCustomerBadge } from '../components/ui/CollaboratorBadge';
 import { 
   LayoutDashboard, 
@@ -111,6 +114,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [newKeywordInput, setNewKeywordInput] = useState<string>('');
   const [serpPreviewMode, setSerpPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
+
+  // Visual validation & Toast Notification feedback states
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const addToast = (toast: Omit<ToastItem, 'id' | 'timestamp'>) => {
+    const id = 'toast-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+    const newToast: ToastItem = {
+      ...toast,
+      id,
+      timestamp: Date.now(),
+    };
+    setToasts(prev => [newToast, ...prev].slice(0, 4));
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
   useEffect(() => {
     setEditSettings(settings);
@@ -198,21 +219,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setEditSettings(settings);
   }, [settings]);
 
-  const handleFaviconFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFaviconFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Please choose an image file under 2MB for the favicon.');
-      return;
+    try {
+      const webpUrl = await compressImageFileToWebP(file, { maxWidth: 128, maxHeight: 128, quality: 0.9 });
+      setEditSettings(prev => ({ ...prev, faviconUrl: webpUrl }));
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        if (dataUrl) setEditSettings(prev => ({ ...prev, faviconUrl: dataUrl }));
+      };
+      reader.readAsDataURL(file);
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        setEditSettings(prev => ({ ...prev, faviconUrl: dataUrl }));
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleHeroVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -239,27 +259,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const handleOgImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOgImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Image file exceeds 5MB. Please upload an image under 5MB for fast social share previews.');
-      return;
+    try {
+      const webpUrl = await compressImageFileToWebP(file, { maxWidth: 1200, maxHeight: 630, quality: 0.82 });
+      setEditSettings(prev => ({
+        ...prev,
+        seo: {
+          ...prev.seo,
+          ogImageUrl: webpUrl,
+        }
+      }));
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        if (dataUrl) {
+          setEditSettings(prev => ({
+            ...prev,
+            seo: {
+              ...prev.seo,
+              ogImageUrl: dataUrl,
+            }
+          }));
+        }
+      };
+      reader.readAsDataURL(file);
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        setEditSettings(prev => ({
-          ...prev,
-          seo: {
-            ...prev.seo,
-            ogImageUrl: dataUrl,
-          }
-        }));
-      }
-    };
-    reader.readAsDataURL(file);
+  };
+
+  const handleProjectCoverFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const webpUrl = await compressImageFileToWebP(file, { maxWidth: 1600, maxHeight: 1000, quality: 0.85 });
+      setEditingProject(prev => prev ? ({ ...prev, coverImage: webpUrl }) : null);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        if (dataUrl) setEditingProject(prev => prev ? ({ ...prev, coverImage: dataUrl }) : null);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const curatedVideoPresets = [
@@ -288,20 +331,143 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     { label: '28px (Dreamy)', value: 28 },
   ];
 
+  /**
+   * Comprehensive Visual Validation for Site Settings & SEO
+   */
+  const validateSiteSettings = (cfg: SiteSettings): { isValid: boolean; errors: Record<string, string> } => {
+    const errors: Record<string, string> = {};
+
+    // 1. Brand Identity
+    if (!cfg.brandName || cfg.brandName.trim().length < 2) {
+      errors.brandName = 'Brand name must be at least 2 characters.';
+    }
+
+    // 2. Contact Information
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cfg.contact?.email || !emailRegex.test(cfg.contact.email.trim())) {
+      errors['contact.email'] = 'Valid contact email is required (e.g. hello@boostify.agency).';
+    }
+    const phoneVal = cfg.contact?.whatsapp || '';
+    if (!phoneVal || phoneVal.trim().length < 6) {
+      errors['contact.whatsapp'] = 'A contact telephone/WhatsApp number is required.';
+    }
+    const locationVal = cfg.contact?.headquarters || '';
+    if (!locationVal || locationVal.trim().length < 3) {
+      errors['contact.headquarters'] = 'Studio physical location/address is required.';
+    }
+
+    // 3. Hero Copy
+    if (!cfg.hero?.headline || cfg.hero.headline.trim().length < 3) {
+      errors['hero.headline'] = 'Hero headline cannot be blank.';
+    }
+
+    // 4. Hero Video
+    if (cfg.hero?.videoEnabled) {
+      if (!cfg.hero.videoUrl || cfg.hero.videoUrl.trim().length < 5) {
+        errors['hero.videoUrl'] = 'Video background is enabled: please enter a valid video URL or uncheck the toggle.';
+      } else {
+        const u = cfg.hero.videoUrl.trim();
+        const isValidProtocol = u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:video/') || u.startsWith('blob:');
+        if (!isValidProtocol) {
+          errors['hero.videoUrl'] = 'Video URL must begin with https:// or http://';
+        }
+      }
+    }
+
+    // 5. Blur & Opacity bounds
+    if (cfg.hero?.videoBlur !== undefined && (cfg.hero.videoBlur < 0 || cfg.hero.videoBlur > 50)) {
+      errors['hero.videoBlur'] = 'Blur must be between 0px and 50px.';
+    }
+    if (cfg.hero?.videoOpacity !== undefined && (cfg.hero.videoOpacity < 5 || cfg.hero.videoOpacity > 100)) {
+      errors['hero.videoOpacity'] = 'Opacity must be between 5% and 100%.';
+    }
+
+    // 6. SEO Metadata
+    if (cfg.seo?.title && cfg.seo.title.trim().length < 5) {
+      errors['seo.title'] = 'SEO title should be at least 5 characters.';
+    }
+    if (cfg.seo?.description && cfg.seo.description.trim().length < 15) {
+      errors['seo.description'] = 'SEO description should be at least 15 characters for search engines.';
+    }
+
+    return {
+      isValid: Object.keys(errors).length === 0,
+      errors,
+    };
+  };
+
   const handleSaveSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+
+    // 1. Run visual validation
+    const validation = validateSiteSettings(editSettings);
+    if (!validation.isValid) {
+      setFormErrors(validation.errors);
+      const errorCount = Object.keys(validation.errors).length;
+      const firstError = Object.values(validation.errors)[0];
+
+      addToast({
+        type: 'error',
+        title: 'Validation Error',
+        message: `${errorCount} field ${errorCount === 1 ? 'error requires' : 'errors require'} attention. Please review highlighted inputs.`,
+        details: firstError,
+        duration: 7000,
+      });
+
+      // Helpful hint if error is on another tab
+      const hasSeoError = Object.keys(validation.errors).some(k => k.startsWith('seo.'));
+      if (hasSeoError && activeTab !== 'seo') {
+        addToast({
+          type: 'warning',
+          title: 'SEO Settings Note',
+          message: 'One or more errors are in the "SEO Settings" tab.',
+          duration: 6000,
+        });
+      }
+      return;
+    }
+
+    // Clear validation errors
+    setFormErrors({});
     setIsSavingSettings(true);
+
     try {
       const settingsToSave: SiteSettings = {
         ...editSettings,
         updatedAt: Date.now(),
       };
-      await saveSiteSettings(settingsToSave);
+
+      const result = await saveSiteSettings(settingsToSave);
       setSettingsSaved(true);
       await onRefreshData();
+
+      // Trigger rich success toast feedback
+      addToast({
+        type: 'success',
+        title: 'Settings Saved Successfully',
+        message: 'Your website identity, hero media, and contact configurations have been persisted.',
+        serverSynced: result?.serverSynced ?? true,
+        firestoreSynced: result?.firestoreSynced,
+        details: result?.firestoreError ? `Firestore: ${result.firestoreError}` : undefined,
+        duration: 5000,
+      });
+    } catch (err: any) {
+      console.error('[Boostify] Error saving site settings:', err);
+      const errorMessage = err?.message || 'Server disk store update failed.';
+
+      // Trigger rich backend error feedback toast
+      addToast({
+        type: 'error',
+        title: 'Backend Storage Failure',
+        message: 'Failed to write settings to the server disk storage or database.',
+        backendError: errorMessage,
+        details: 'Check server console or network connectivity. Changes remain cached in your local session.',
+        duration: 10000,
+        onRetry: () => handleSaveSettings(),
+      });
     } finally {
       setIsSavingSettings(false);
-      setTimeout(() => setSettingsSaved(false), 3000);
+      setTimeout(() => setSettingsSaved(false), 3500);
     }
   };
 
@@ -428,6 +594,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="pt-24 pb-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      {/* Real-time Global Feedback Toasts */}
+      <ToastNotificationContainer toasts={toasts} onDismiss={removeToast} />
+
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-6 border-b border-white/10">
         <div>
@@ -1034,12 +1203,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-neutral-400 mb-1">Cover Image URL</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-neutral-400">Cover Image URL</label>
+                    <label className="cursor-pointer text-[10px] text-[#FF6E17] hover:underline flex items-center gap-1">
+                      <Upload className="w-3 h-3" />
+                      <span>Upload &amp; Auto-WebP</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProjectCoverFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
                   <input
                     type="text"
                     value={editingProject.coverImage || ''}
                     onChange={e => setEditingProject(prev => ({ ...prev, coverImage: e.target.value }))}
-                    placeholder="https://..."
+                    placeholder="https://... or upload above"
                     className="w-full rounded-lg bg-black/60 border border-white/15 px-3 py-2 text-white focus:border-[#FF6E17] focus:outline-none"
                   />
                 </div>
@@ -2625,28 +2806,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <span>Site Title (`&lt;title&gt;` &amp; `og:title`) *</span>
                 </label>
                 <div className="flex items-center gap-2">
-                  {(() => {
-                    const len = (editSettings.seo?.title || '').length;
-                    if (len >= 30 && len <= 60) {
-                      return (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                          {len}/60 chars • Optimal for Google SERP
-                        </span>
-                      );
-                    } else if (len > 60) {
-                      return (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                          {len}/60 chars • May truncate in Google
-                        </span>
-                      );
-                    } else {
-                      return (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 border border-white/10">
-                          {len}/60 chars • Recommend 30–60 chars
-                        </span>
-                      );
-                    }
-                  })()}
+                  {formErrors['seo.title'] ? (
+                    <span className="text-[10px] text-red-400 font-mono flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" /> {formErrors['seo.title']}
+                    </span>
+                  ) : (
+                    (() => {
+                      const len = (editSettings.seo?.title || '').length;
+                      if (len >= 30 && len <= 60) {
+                        return (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            {len}/60 chars • Optimal for Google SERP
+                          </span>
+                        );
+                      } else if (len > 60) {
+                        return (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                            {len}/60 chars • May truncate in Google
+                          </span>
+                        );
+                      } else {
+                        return (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 border border-white/10">
+                            {len}/60 chars • Recommend 30–60 chars
+                          </span>
+                        );
+                      }
+                    })()
+                  )}
                 </div>
               </div>
 
@@ -2662,9 +2849,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       title: val,
                     }
                   }));
+                  if (formErrors['seo.title']) setFormErrors(prev => ({ ...prev, 'seo.title': '' }));
                 }}
                 placeholder="e.g. Boostify — Creative Digital Growth & Technology Agency | Dhaka"
-                className="w-full rounded-lg bg-black/60 border border-white/15 px-3 py-2 text-xs text-white focus:border-[#FF6E17] focus:outline-none"
+                className={`w-full rounded-lg bg-black/60 border px-3 py-2 text-xs text-white focus:outline-none transition-all ${
+                  formErrors['seo.title']
+                    ? 'border-red-500/80 ring-1 ring-red-500/30 bg-red-950/15'
+                    : 'border-white/15 focus:border-[#FF6E17]'
+                }`}
               />
               <p className="text-[11px] text-neutral-400">
                 Shown in Google search results, browser tab title, bookmark name, and social post previews.
@@ -2678,28 +2870,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <span>Meta Description (`&lt;meta name="description"&gt;`) *</span>
                 </label>
                 <div className="flex items-center gap-2">
-                  {(() => {
-                    const len = (editSettings.seo?.description || '').length;
-                    if (len >= 120 && len <= 160) {
-                      return (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                          {len}/160 chars • Optimal snippet length
-                        </span>
-                      );
-                    } else if (len > 160) {
-                      return (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                          {len}/160 chars • May truncate after ~160 chars
-                        </span>
-                      );
-                    } else {
-                      return (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 border border-white/10">
-                          {len}/160 chars • Recommend 120–160 chars
-                        </span>
-                      );
-                    }
-                  })()}
+                  {formErrors['seo.description'] ? (
+                    <span className="text-[10px] text-red-400 font-mono flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" /> {formErrors['seo.description']}
+                    </span>
+                  ) : (
+                    (() => {
+                      const len = (editSettings.seo?.description || '').length;
+                      if (len >= 120 && len <= 160) {
+                        return (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            {len}/160 chars • Optimal snippet length
+                          </span>
+                        );
+                      } else if (len > 160) {
+                        return (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                            {len}/160 chars • May truncate after ~160 chars
+                          </span>
+                        );
+                      } else {
+                        return (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 border border-white/10">
+                            {len}/160 chars • Recommend 120–160 chars
+                          </span>
+                        );
+                      }
+                    })()
+                  )}
                 </div>
               </div>
 
@@ -2715,9 +2913,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       description: val,
                     }
                   }));
+                  if (formErrors['seo.description']) setFormErrors(prev => ({ ...prev, 'seo.description': '' }));
                 }}
                 placeholder="Brief, persuasive 1–2 sentence summary explaining your creative services, location, and unique value proposition..."
-                className="w-full rounded-lg bg-black/60 border border-white/15 px-3 py-2 text-xs text-white focus:border-[#FF6E17] focus:outline-none"
+                className={`w-full rounded-lg bg-black/60 border px-3 py-2 text-xs text-white focus:outline-none transition-all ${
+                  formErrors['seo.description']
+                    ? 'border-red-500/80 ring-1 ring-red-500/30 bg-red-950/15'
+                    : 'border-white/15 focus:border-[#FF6E17]'
+                }`}
               />
               <p className="text-[11px] text-neutral-400">
                 A compelling summary that appears below your title in Google search results and when the URL is shared.
@@ -3141,12 +3344,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div>
-                <label className="block text-neutral-400 mb-1">Agency Name</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-neutral-400">Agency Name *</label>
+                  {formErrors['brandName'] && (
+                    <span className="text-[10px] text-red-400 font-mono flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" /> {formErrors['brandName']}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={editSettings.brandName}
-                  onChange={e => setEditSettings({ ...editSettings, brandName: e.target.value })}
-                  className="w-full rounded-lg bg-black/60 border border-white/15 px-3 py-2 text-white"
+                  onChange={e => {
+                    setEditSettings({ ...editSettings, brandName: e.target.value });
+                    if (formErrors['brandName']) setFormErrors(prev => ({ ...prev, brandName: '' }));
+                  }}
+                  className={`w-full rounded-lg bg-black/60 border px-3 py-2 text-white transition-all ${
+                    formErrors['brandName']
+                      ? 'border-red-500/80 ring-1 ring-red-500/30 bg-red-950/15'
+                      : 'border-white/15 focus:border-[#FF6E17]'
+                  }`}
                 />
               </div>
 
@@ -3156,47 +3373,91 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="text"
                   value={editSettings.logoUrl}
                   onChange={e => setEditSettings({ ...editSettings, logoUrl: e.target.value })}
-                  className="w-full rounded-lg bg-black/60 border border-white/15 px-3 py-2 text-white"
+                  className="w-full rounded-lg bg-black/60 border border-white/15 px-3 py-2 text-white focus:border-[#FF6E17]"
                 />
               </div>
 
               <div>
-                <label className="block text-neutral-400 mb-1">Contact Email</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-neutral-400">Contact Email *</label>
+                  {formErrors['contact.email'] && (
+                    <span className="text-[10px] text-red-400 font-mono flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" /> {formErrors['contact.email']}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="email"
                   value={editSettings.contact.email}
-                  onChange={e => setEditSettings({
-                    ...editSettings,
-                    contact: { ...editSettings.contact, email: e.target.value }
-                  })}
-                  className="w-full rounded-lg bg-black/60 border border-white/15 px-3 py-2 text-white"
+                  onChange={e => {
+                    setEditSettings({
+                      ...editSettings,
+                      contact: { ...editSettings.contact, email: e.target.value }
+                    });
+                    if (formErrors['contact.email']) setFormErrors(prev => ({ ...prev, 'contact.email': '' }));
+                  }}
+                  className={`w-full rounded-lg bg-black/60 border px-3 py-2 text-white transition-all ${
+                    formErrors['contact.email']
+                      ? 'border-red-500/80 ring-1 ring-red-500/30 bg-red-950/15'
+                      : 'border-white/15 focus:border-[#FF6E17]'
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="block text-neutral-400 mb-1">WhatsApp Number</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-neutral-400">WhatsApp / Phone Number *</label>
+                  {formErrors['contact.whatsapp'] && (
+                    <span className="text-[10px] text-red-400 font-mono flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" /> {formErrors['contact.whatsapp']}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={editSettings.contact.whatsapp}
-                  onChange={e => setEditSettings({
-                    ...editSettings,
-                    contact: { ...editSettings.contact, whatsapp: e.target.value }
-                  })}
-                  className="w-full rounded-lg bg-black/60 border border-white/15 px-3 py-2 text-white"
+                  onChange={e => {
+                    const val = e.target.value;
+                    setEditSettings({
+                      ...editSettings,
+                      contact: { ...editSettings.contact, whatsapp: val }
+                    });
+                    if (formErrors['contact.whatsapp']) setFormErrors(prev => ({ ...prev, 'contact.whatsapp': '' }));
+                  }}
+                  className={`w-full rounded-lg bg-black/60 border px-3 py-2 text-white transition-all ${
+                    formErrors['contact.whatsapp']
+                      ? 'border-red-500/80 ring-1 ring-red-500/30 bg-red-950/15'
+                      : 'border-white/15 focus:border-[#FF6E17]'
+                  }`}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-neutral-400 text-xs mb-1">Studio Headquarters Address</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-neutral-400 text-xs">Studio Headquarters Address *</label>
+                {formErrors['contact.headquarters'] && (
+                  <span className="text-[10px] text-red-400 font-mono flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" /> {formErrors['contact.headquarters']}
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
-                value={editSettings.contact.headquarters}
-                onChange={e => setEditSettings({
-                  ...editSettings,
-                  contact: { ...editSettings.contact, headquarters: e.target.value }
-                })}
-                className="w-full rounded-lg bg-black/60 border border-white/15 px-3 py-2 text-xs text-white"
+                value={editSettings.contact.headquarters || ''}
+                onChange={e => {
+                  const val = e.target.value;
+                  setEditSettings({
+                    ...editSettings,
+                    contact: { ...editSettings.contact, headquarters: val }
+                  });
+                  if (formErrors['contact.headquarters']) setFormErrors(prev => ({ ...prev, 'contact.headquarters': '' }));
+                }}
+                className={`w-full rounded-lg bg-black/60 border px-3 py-2 text-xs text-white transition-all ${
+                  formErrors['contact.headquarters']
+                    ? 'border-red-500/80 ring-1 ring-red-500/30 bg-red-950/15'
+                    : 'border-white/15 focus:border-[#FF6E17]'
+                }`}
               />
             </div>
 
@@ -3311,15 +3572,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <div>
-              <label className="block text-neutral-400 text-xs mb-1">Hero Main Headline</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-neutral-400 text-xs">Hero Main Headline *</label>
+                {formErrors['hero.headline'] && (
+                  <span className="text-[10px] text-red-400 font-mono flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" /> {formErrors['hero.headline']}
+                  </span>
+                )}
+              </div>
               <textarea
                 rows={2}
                 value={editSettings.hero.headline}
-                onChange={e => setEditSettings({
-                  ...editSettings,
-                  hero: { ...editSettings.hero, headline: e.target.value }
-                })}
-                className="w-full rounded-lg bg-black/60 border border-white/15 px-3 py-2 text-xs text-white font-mono"
+                onChange={e => {
+                  setEditSettings({
+                    ...editSettings,
+                    hero: { ...editSettings.hero, headline: e.target.value }
+                  });
+                  if (formErrors['hero.headline']) setFormErrors(prev => ({ ...prev, 'hero.headline': '' }));
+                }}
+                className={`w-full rounded-lg bg-black/60 border px-3 py-2 text-xs text-white font-mono transition-all ${
+                  formErrors['hero.headline']
+                    ? 'border-red-500/80 ring-1 ring-red-500/30 bg-red-950/15'
+                    : 'border-white/15 focus:border-[#FF6E17]'
+                }`}
               />
             </div>
 
@@ -3378,23 +3653,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             {/* Video Source URL & File Upload */}
-            <div className="space-y-3">
-              <label className="block text-neutral-300 font-semibold text-xs">
-                Background Video Source URL (.mp4 or .webm)
-              </label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-neutral-300 font-semibold text-xs">
+                  Background Video Source URL (YouTube, Vimeo, MP4 or WebM)
+                </label>
+                {formErrors['hero.videoUrl'] && (
+                  <span className="text-[10px] text-red-400 font-mono flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" /> {formErrors['hero.videoUrl']}
+                  </span>
+                )}
+              </div>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={editSettings.hero.videoUrl || ''}
-                  onChange={e => setEditSettings({
-                    ...editSettings,
-                    hero: {
-                      ...editSettings.hero,
-                      videoUrl: e.target.value,
-                    }
-                  })}
-                  placeholder="https://... direct link to MP4 or WebM video"
-                  className="flex-1 rounded-lg bg-black/60 border border-white/15 px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-[#FF6E17]"
+                  onChange={e => {
+                    setEditSettings({
+                      ...editSettings,
+                      hero: {
+                        ...editSettings.hero,
+                        videoUrl: e.target.value,
+                      }
+                    });
+                    if (formErrors['hero.videoUrl']) setFormErrors(prev => ({ ...prev, 'hero.videoUrl': '' }));
+                  }}
+                  placeholder="https://www.youtube.com/watch?v=... or .mp4 URL"
+                  className={`flex-1 rounded-lg bg-black/60 border px-3 py-2 text-xs text-white font-mono focus:outline-none transition-all ${
+                    formErrors['hero.videoUrl']
+                      ? 'border-red-500/80 ring-1 ring-red-500/30 bg-red-950/15'
+                      : 'border-white/15 focus:border-[#FF6E17]'
+                  }`}
                 />
                 <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/15 text-xs text-neutral-200 transition-colors shrink-0">
                   <Upload className="w-3.5 h-3.5 text-[#FF6E17]" />
@@ -3549,21 +3838,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="relative h-48 rounded-xl overflow-hidden border border-white/15 flex items-center justify-center text-center p-4 bg-black">
                 {editSettings.hero.videoUrl && (editSettings.hero.videoEnabled ?? true) ? (
                   <>
-                    <video
-                      key={editSettings.hero.videoUrl}
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      style={{
-                        filter: `blur(${editSettings.hero.videoBlur ?? 10}px)`,
-                        opacity: (editSettings.hero.videoOpacity ?? 40) / 100,
-                      }}
-                      className="absolute inset-0 w-full h-full object-cover scale-110 pointer-events-none transition-all duration-300"
-                    >
-                      <source src={editSettings.hero.videoUrl} type="video/mp4" />
-                      <source src={editSettings.hero.videoUrl} type="video/webm" />
-                    </video>
+                    <HeroBackgroundVideo
+                      videoUrl={editSettings.hero.videoUrl}
+                      videoEnabled={editSettings.hero.videoEnabled ?? true}
+                      videoBlur={editSettings.hero.videoBlur ?? 10}
+                      videoOpacity={editSettings.hero.videoOpacity ?? 40}
+                      isInteractivePreview
+                    />
                     <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/80 pointer-events-none" />
                   </>
                 ) : (
@@ -3779,16 +4060,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </LiquidGlass>
 
-          {settingsSaved && (
-            <div className="p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Settings successfully persisted to storage and site metadata.</span>
+          {Object.keys(formErrors).length > 0 && (
+            <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-start gap-2.5 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block font-semibold">Validation Errors Detected</strong>
+                <span className="text-[11px] text-red-300">
+                  Please fix the highlighted fields ({Object.keys(formErrors).length} error{Object.keys(formErrors).length === 1 ? '' : 's'}) before persisting settings.
+                </span>
+              </div>
             </div>
           )}
 
-          <GlassButton type="submit" size="md">
-            Save All Settings
-          </GlassButton>
+          {settingsSaved && (
+            <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>Settings successfully persisted to server disk storage, cache, and public metadata.</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 pt-2">
+            <GlassButton type="submit" size="md" disabled={isSavingSettings}>
+              {isSavingSettings ? (
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 animate-spin text-[#FF6E17]" />
+                  <span>Saving Settings...</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Check className="w-4 h-4" />
+                  <span>Save All Settings</span>
+                </span>
+              )}
+            </GlassButton>
+          </div>
         </form>
       )}
 

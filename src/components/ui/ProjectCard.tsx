@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Project } from '../../types';
 import { ArrowUpRight, ExternalLink } from 'lucide-react';
 import { Magnetic } from './Magnetic';
+import { OptimizedImage } from './OptimizedImage';
 
 interface ProjectCardProps {
   project: Project;
@@ -76,11 +77,11 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, feat
           }}
           className="relative w-full h-full rounded-2xl overflow-hidden border border-white/10 hover:border-white/25 bg-neutral-950 shadow-lg hover:shadow-2xl hover:shadow-black/70 will-change-transform"
         >
-          {/* Full-bleed Social Media Poster image with smooth zoom */}
-          <img
+          {/* Full-bleed Social Media Poster image with smooth zoom & WebP optimization */}
+          <OptimizedImage
             src={project.coverImage}
             alt={project.title}
-            loading="lazy"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-106 will-change-transform"
           />
 
@@ -144,10 +145,10 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, feat
       >
         {/* Background Image with smooth Zoom and parallax depth */}
         <div className="relative aspect-[16/10] md:aspect-[16/9] w-full overflow-hidden bg-neutral-900">
-          <img
+          <OptimizedImage
             src={project.coverImage}
             alt={project.title}
-            loading="lazy"
+            sizes={featured ? '(max-width: 768px) 100vw, 80vw' : '(max-width: 768px) 100vw, 50vw'}
             className="h-full w-full object-cover transition-all duration-700 ease-out group-hover:scale-106 filter brightness-[0.92] group-hover:brightness-105 will-change-transform"
           />
 
